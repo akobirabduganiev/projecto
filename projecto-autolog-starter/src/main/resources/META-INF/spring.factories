@@ -1,2 +1,2 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-  net.nuqta.projecto.autolog.starter.AutoLogAutoConfiguration
+net.nuqta.projecto.autolog.starter.ProjectoAutoLogAutoConfiguration

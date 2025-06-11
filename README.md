@@ -1,112 +1,159 @@
-# Projecto
+# Projecto AutoLog
 
-Projecto is an open-source library for Spring Boot applications that aims to reduce boilerplate code.
+A robust, developer-friendly, highly customizable logging utility for Spring Boot applications that reduces boilerplate and integrates with observability tools.
 
-## Modules
+## Features
 
-### projecto-autolog
+- **@AutoLog Annotation**: Automatically log method entry, exit, and exceptions
+- **@StepLog Annotation**: Step-by-step logging inside methods
+- **YAML-based Configuration**: Customize logging behavior via application.yml
+- **MDC Support**: Include requestId and custom values in logs
+- **Conditional Logging**: Log conditionally based on method parameters (via SpEL)
+- **Structured Logging**: Output logs in JSON format for Loki/ELK
+- **Metrics Integration**: Expose method-level performance metrics with Micrometer
+- **Template-based Log Output**: Customize log format using placeholders
+- **Developer Tagging**: Tag methods with @LoggedBy annotation
 
-The `projecto-autolog` module provides automatic logging for Spring Boot applications.
+## Installation
 
-#### Features
-
-- **@AutoLog annotation**: Can be used on classes or methods to enable automatic logging
-- **Automatic logging of method entry and exit**: Logs when a method is entered and exited
-- **Execution duration logging**: Logs the execution time of methods in milliseconds
-- **Exception logging**: Catches and logs exceptions in a standardized format
-- **Request ID tracking**: Includes request ID in logs for easier tracing
-- **Configurable via application.yml**: Control logging behavior through configuration
-- **@StepLog annotation**: (Future feature) Enables detailed step-level logging within methods
-
-## Getting Started
-
-### Add Dependency
-
-Add the following dependency to your `build.gradle.kts` file:
+Add the dependency to your build.gradle.kts file:
 
 ```kotlin
-implementation("net.nuqta.projecto:projecto-autolog-starter:0.1.0")
+implementation("net.nuqta:projecto-autolog-starter:1.1.0")
 ```
 
-Or if you're using Maven:
+## Usage
 
-```xml
-<dependency>
-    <groupId>net.nuqta.projecto</groupId>
-    <artifactId>projecto-autolog-starter</artifactId>
-    <version>0.1.0</version>
-</dependency>
+### Basic Usage
+
+```kotlin
+@Service
+@AutoLog  // Log all public methods in this class
+class UserService {
+
+    @AutoLog(logReturnValue = true)  // Override class-level settings
+    fun findUser(id: String): User {
+        // Method implementation
+    }
+}
 ```
 
-### Configuration
+### Step-by-Step Logging
 
-Configure the library in your `application.yml` file:
+```kotlin
+@Service
+@AutoLog
+class OrderService {
+
+    fun processOrder(order: Order): OrderResult {
+        // Add user ID to MDC for this operation
+        MdcUtil.put("userId", order.userId)
+        
+        try {
+            // Step 1: Validate order
+            validateOrder(order)
+            
+            // Step 2: Process payment
+            processPayment(order)
+            
+            // Step 3: Create shipment
+            return createShipment(order)
+        } finally {
+            // Clean up MDC
+            MdcUtil.remove("userId")
+        }
+    }
+
+    @StepLog(description = "Validating order", logArgs = true)
+    private fun validateOrder(order: Order) {
+        // Validation logic
+    }
+
+    @StepLog(description = "Processing payment", logArgs = true)
+    private fun processPayment(order: Order) {
+        // Payment processing logic
+    }
+
+    @StepLog(description = "Creating shipment", logReturn = true)
+    private fun createShipment(order: Order): OrderResult {
+        // Shipment creation logic
+        return OrderResult(/* ... */)
+    }
+}
+```
+
+### Conditional Logging
+
+```kotlin
+@AutoLog(condition = "#debug == true")
+fun calculateResult(a: Int, b: Int, debug: Boolean = false): Int {
+    // This method will only be logged if debug is true
+    return a + b
+}
+```
+
+### Developer Tagging
+
+```kotlin
+@LoggedBy("John Doe")
+fun importantMethod() {
+    // Method implementation
+}
+```
+
+### MDC Utilities
+
+```kotlin
+// Add values to MDC
+MdcUtil.put("userId", "user-123")
+
+// Execute code with MDC values
+MdcUtil.withMdc(mapOf("operation" to "payment", "amount" to "100.00")) {
+    // Code to execute with MDC values
+}
+
+// Get request ID
+val requestId = MdcUtil.getRequestId()
+```
+
+## Configuration
+
+Example application.yml configuration:
 
 ```yaml
 projecto:
   autolog:
-    enabled: true           # Enable/disable the aspect (default: true)
-    log-args: true          # Log method arguments (default: true)
-    log-return-value: false # Log method return values (default: false)
+    enabled: true
+    log-args: true
+    log-return-value: false
+    log-exception-stacktrace: true
+    structured-logging: false
+    metrics-enabled: true
+    include-packages:
+      - com.myapp.service
+    exclude-packages:
+      - com.myapp.cache
+    level:
+      entry: INFO
+      exit: DEBUG
+      error: ERROR
+      step: DEBUG
+    template:
+      entry: "[ENTER] {{method}} args={{args}} requestId={{requestId}}"
+      exit: "[EXIT] {{method}} returned={{return}} duration={{duration}}ms requestId={{requestId}}"
+      error: "[ERROR] {{method}} exception={{exception}} duration={{duration}}ms requestId={{requestId}}"
+      step: "[STEP] {{method}} - {{description}} duration={{duration}}ms requestId={{requestId}}"
 ```
 
-### Usage
+## Metrics
 
-1. Add the `@AutoLog` annotation to your classes or methods:
+When metrics are enabled, the following metrics are exposed:
 
-```kotlin
-import net.nuqta.projecto.autolog.core.AutoLog
+- `projecto_autolog_method_duration_seconds`: Method execution duration
+- `projecto_autolog_method_duration_seconds_step`: Step execution duration
 
-@Service
-class MyService {
-
-    @AutoLog
-    fun processData(data: String): String {
-        // Method implementation
-        return "Processed: $data"
-    }
-
-    @AutoLog(logArgs = true, logReturnValue = true)
-    fun calculateResult(a: Int, b: Int): Int {
-        return a + b
-    }
-}
-```
-
-2. The library will automatically log:
-   - Method entry: `--> Entering: MyService.processData(requestId=abc123, ...)`
-   - Method exit: `<-- Exiting: MyService.processData [duration=12ms]`
-   - Exceptions: `!! Exception in MyService.processData: Error message`
-
-3. (Future Feature) Use the `@StepLog` annotation for detailed step-level logging:
-
-```kotlin
-@AutoLog
-fun complexProcess(data: String): Result {
-    // Step 1: Validate input
-    val validatedData = @StepLog("Validate Input") validateData(data)
-
-    // Step 2: Process data
-    val processedData = @StepLog("Process Data", logReturnValue = true) processData(validatedData)
-
-    // Step 3: Generate result
-    return @StepLog("Generate Result") createResult(processedData)
-}
-```
-
-## Building the Project
-
-This project uses [Gradle](https://gradle.org/).
-
-* Run `./gradlew build` to build the project
-* Run `./gradlew :projecto-autolog-demo:bootRun` to run the demo application
-
-## Project Structure
-
-- **projecto-autolog-core**: Core annotations, aspects, and filters
-- **projecto-autolog-starter**: Spring Boot auto-configuration module
-- **projecto-autolog-demo**: Demo Spring Boot application
+These metrics include tags for method name, success status, and developer name.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License
