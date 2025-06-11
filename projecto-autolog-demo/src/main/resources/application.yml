@@ -1,0 +1,37 @@
+# Demo application configuration
+server:
+  port: 8080
+
+spring:
+  application:
+    name: projecto-autolog-demo
+
+# AutoLog configuration
+projecto:
+  autolog:
+    enabled: true
+    log-args: true
+    log-return-value: true
+    log-exception-stacktrace: true
+    structured-logging: false
+    metrics-enabled: true
+    include-packages:
+      - net.nuqta.projecto.autolog.demo
+    exclude-packages:
+      - net.nuqta.projecto.autolog.demo.excluded
+    level:
+      entry: INFO
+      exit: DEBUG
+      error: ERROR
+      step: DEBUG
+    template:
+      entry: "[ENTER] {{method}} args={{args}} requestId={{requestId}}"
+      exit: "[EXIT] {{method}} returned={{return}} duration={{duration}}ms requestId={{requestId}}"
+      error: "[ERROR] {{method}} exception={{exception}} duration={{duration}}ms requestId={{requestId}}"
+      step: "[STEP] {{method}} - {{description}} duration={{duration}}ms requestId={{requestId}}"
+
+# Logging configuration
+logging:
+  level:
+    root: INFO
+    net.nuqta.projecto: DEBUG
